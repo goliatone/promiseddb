@@ -71,10 +71,25 @@
 
 ///////////////////////////////////////////////////
 // CONSTRUCTOR
+// MDN: https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API/Using_IndexedDB
 ///////////////////////////////////////////////////
 
-	var options = {
-        autoinitialize:true
+	var OPTIONS = {
+        autoconnect:true,
+        autoinitialize: true,
+
+        //TODO: Move to Connection Manager
+        delay: 200,
+        maxTries: 5,
+
+        version: 1.0,
+        storeId:'_GST_',
+        database: '_gstore_default_',
+        resultNamespace:'result',
+        defineSchema:function() {},
+        getDriver:function(){
+            return indexedDB || mozIndexedDB || webkitIndexedDB || msIndexedDB;
+        }
     };
 
     /**
@@ -96,7 +111,11 @@
      * Make default options available so we
      * can override.
      */
-    PromisedDB.DEFAULTS = options;
+    PromisedDB.DEFAULTS = OPTIONS;
+
+    PromisedDB.isSupported = function() {
+        return !!(indexedDB || mozIndexedDB || webkitIndexedDB || msIndexedDB);
+    };
 
 ///////////////////////////////////////////////////
 // PRIVATE METHODS
@@ -109,7 +128,168 @@
         console.log('PromisedDB: Init!');
         _extend(this, config);
 
-        return 'This is just a stub!';
+        this.reset();
+
+        this.driver = this.getDriver();
+
+        if(config.autoconnect) this.connect();
+
+        return this;
+    };
+
+    PromisedDB.prototype.reset = function(options){
+        this.tries = 0;
+        this.queue = [];
+
+        if(this.connection) this.connection.close();
+
+        this.connection = null;
+    };
+
+    PromisedDB.prototype.connect = function(){
+        var req = this.driver.open(this.database, this.version);
+
+        req.onsuccess = function(e) {
+            //TODO: Move to Connection Manager this.manager.didConnect();
+            this.tries = 0;
+            //TODO: Move to onConnected
+            this.connection = e.target.result;
+            this.connection.onversionchange = function(event) {
+                this.connection.close();
+                this.logger.warn("PromisedDB is updating. Please reload!");
+            };
+
+            this.onConnected();
+            this.flushQueue();
+        };
+
+        // If connection cannot be made to database.
+        req.onerror = function(e) {
+            //TODO: Handle in Connection Manager
+            if (++this.tries < this.maxTries) {
+                setTimeout(this.connect.bind(this), this.delay);
+            } else {
+                this.onError(e);
+            }
+        };
+
+        req.onblocked = function(e){
+            //Version upgrades.
+            // If some other tab is loaded with the database, then it needs to be closed
+            // before we can proceed.
+            this.logger.warn("PromisedDB: close other open tabs with this app running");
+        };
+
+        // This will run if our database is new and other
+        // connections closed.
+        req.onupgradeneeded = function(e) {
+            var connection = e.target.result;
+            //TODO: Should we ensure we notify that
+            //we had to create the DB?!
+            this.defineSchema.apply(connection);
+        };
+
+        req.onerror = req.onerror.bind(this);
+        req.onsuccess = req.onsuccess.bind(this);
+        req.onblocked = req.onblocked.bind(this);
+        req.onupgradeneeded = req.onupgradeneeded.bind(this);
+    };
+
+    PromisedDB.prototype.query = function(query) {
+        return this.with(this.storeId, query);
+    };
+
+    PromisedDB.prototype.with = function(storeId, query) {
+        this.storeId = storeId;
+        //query here is a transaction callback.
+        var command = function(resolve, reject) {
+            if (this.connection) {
+                this.resolveTransaction(storeId, query, resolve, reject);
+            } else {
+                this.queueTransaction(storeId, query, resolve, reject);
+            }
+        };
+        command = command.bind(this);
+
+        return new Promise(command);
+    };
+
+    /**
+     * Add transaction info to queue for when database is available
+     */
+    PromisedDB.prototype.queueTransaction = function(storeId, query, resolve, reject) {
+        this.queue.push([].slice.call(arguments, 0));
+    };
+
+    PromisedDB.prototype.flushQueue = function() {
+        var solver = function(last, args) {
+            this.resolveTransaction.apply(this, args);
+        }.bind(this);
+        var out = this.queue.reduce(solver, []);
+        this.queue = [];
+    };
+
+    /**
+     * Resolve transaction and provide results to caller
+     */
+    PromisedDB.prototype.resolveTransaction = function(storeId, commit, resolve, reject) {
+        var commands = [],
+            defaultNamespace = this.resultNamespace,
+            transaction = this.connection.transaction(storeId, 'readwrite');
+
+        /*
+         * We pass the results to the resolve method.
+         * Available as an argument in the `then` method!
+         * `query` is actually the IDBRequest returned by
+         *  `indexedbd.transaction`
+         */
+        var execute = function(request, namespace) {
+            namespace || (namespace = defaultNamespace);
+            var promised = new Promise(function(rs, rj) {
+                request.onerror = rj;
+                request.onsuccess = function(data) {
+                    rs({
+                        for: namespace,
+                        result: data.target.result
+                    });
+                };
+            });
+            commands.push(promised);
+        };
+
+        try {
+            /*
+             * Execute commit in transaction scope.
+             */
+            commit.call(transaction, execute);
+        } catch (e) {
+            reject(e);
+        }
+
+        Promise.all(commands)
+            .then(function(values) {
+                /*
+                 * Iterate over all promised results and collapse
+                 * to a single object.
+                 */
+                var result = values.reduce(function(output, resolved) {
+                    output[resolved.for] = resolved.result;
+                    return output;
+                }, {});
+                resolve(result);
+            })
+            .catch(function(e){
+                console.error(e);
+                reject(e);
+            });
+    };
+
+    PromisedDB.prototype.onConnected = function() {
+        this.logger.info('BD connected');
+    };
+
+    PromisedDB.prototype.onError = function(e) {
+        this.logger.error('ERROR:', e);
     };
 
     /**
@@ -123,7 +303,7 @@
      * PubSub emit method stub.
      */
     PromisedDB.prototype.emit = function() {
-        this.logger.warn(PromisedDB, 'emit method is not implemented', arguments);
+        this.logger.warn('PromisedDB::emit method is not implemented', arguments);
     };
 
     return PromisedDB;
