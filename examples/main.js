@@ -10,6 +10,21 @@ requirejs.config({
 
 define(['promiseddb', 'jquery'], function (PromisedDB, $) {
     console.log('Loading');
-	var promiseddb = new PromisedDB();
-	promiseddb.init();
+	var promiseddb = new PromisedDB({
+		version:1,
+		database:'testing',
+		defineSchema: function(){
+			console.log('DEFINE SCHEMA');
+			this.createObjectStore('People', {
+                keyPath: 'id',
+                autoIncrement: true
+            });
+            this.createObjectStore('Groups', {
+                keyPath: 'id',
+                autoIncrement: true
+            });
+		}
+	});
+
+	window.db = promiseddb;
 });
