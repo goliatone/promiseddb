@@ -297,6 +297,7 @@
     };
 
     PromisedDB.prototype._onUpgradeNeeded = function(e) {
+        this.logger.warn('PromisedDB::onUpgradedNeeded', e);
         var connection = e.target.result;
         //TODO: Should we ensure we notify that
         //we had to create the DB?!
