@@ -48,11 +48,5 @@ And push it:
 In order to enable Travis for this specific project, you need to do so on your Travi's [profile](https://travis-ci.org/profile). Look for the entry `goliatone/promiseddb`, activate, and sync.
 
 
-## Documentation
-_(Coming soon)_
-
-## Examples
-_(Coming soon)_
-
-## Release History
-_(Nothing yet)_
+## TODO:
+Abstract Connection Management. Possibly same use case as `gsocket`. It should also include queuing of operations until connected.
