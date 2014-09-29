@@ -7,10 +7,10 @@
  */
 /* jshint strict: false, plusplus: true */
 /*global define: false, require: false, module: false, exports: false */
-(function (root, name, deps, factory) {
+(function(root, name, deps, factory) {
     "use strict";
     // Node
-     if(typeof deps === 'function') {
+    if (typeof deps === 'function') {
         factory = deps;
         deps = [];
     }
@@ -23,11 +23,14 @@
         define(name.toLowerCase(), deps, factory);
     } else {
         // Browser
-        var d, i = 0, global = root, old = global[name], mod;
-        while((d = deps[i]) !== undefined) deps[i++] = root[d];
+        var d, i = 0,
+            global = root,
+            old = global[name],
+            mod;
+        while ((d = deps[i]) !== undefined) deps[i++] = root[d];
         global[name] = mod = factory.apply(global, deps);
         //Export no 'conflict module', aliases the module.
-        mod.noConflict = function(){
+        mod.noConflict = function() {
             global[name] = old;
             return mod;
         };
@@ -40,7 +43,7 @@
      * @return {Object}        Resulting object from
      *                         meging target to params.
      */
-    var _extend= extend;
+    var _extend = extend;
 
     /**
      * Shim console, make sure that if no console
@@ -69,13 +72,13 @@
 
 
 
-///////////////////////////////////////////////////
-// CONSTRUCTOR
-// MDN: https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API/Using_IndexedDB
-///////////////////////////////////////////////////
+    ///////////////////////////////////////////////////
+    // CONSTRUCTOR
+    // MDN: https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API/Using_IndexedDB
+    ///////////////////////////////////////////////////
 
-	var OPTIONS = {
-        autoconnect:true,
+    var OPTIONS = {
+        autoconnect: true,
         autoinitialize: true,
 
         //TODO: Move to Connection Manager
@@ -83,11 +86,11 @@
         maxTries: 5,
 
         version: 1.0,
-        storeId:'_GST_',
+        storeId: '_GST_',
         database: '_gstore_default_',
-        resultNamespace:'result',
-        defineSchema:function() {},
-        getDriver:function(){
+        resultNamespace: 'result',
+        defineSchema: function() {},
+        getDriver: function() {
             return indexedDB || mozIndexedDB || webkitIndexedDB || msIndexedDB;
         }
     };
@@ -97,10 +100,10 @@
      *
      * @param  {object} config Configuration object.
      */
-    var PromisedDB = function(config){
+    var PromisedDB = function(config) {
         config = _extend({}, this.constructor.DEFAULTS, config);
 
-        if(config.autoinitialize) this.init(config);
+        if (config.autoinitialize) this.init(config);
     };
 
     PromisedDB.name = PromisedDB.prototype.name = 'PromisedDB';
@@ -117,12 +120,12 @@
         return !!(indexedDB || mozIndexedDB || webkitIndexedDB || msIndexedDB);
     };
 
-///////////////////////////////////////////////////
-// PRIVATE METHODS
-///////////////////////////////////////////////////
+    ///////////////////////////////////////////////////
+    // PUBLIC METHODS
+    ///////////////////////////////////////////////////
 
-    PromisedDB.prototype.init = function(config){
-        if(this.initialized) return this.logger.warn('Already initialized');
+    PromisedDB.prototype.init = function(config) {
+        if (this.initialized) return this.logger.warn('Already initialized');
         this.initialized = true;
 
         console.log('PromisedDB: Init!');
@@ -132,67 +135,37 @@
 
         this.driver = this.getDriver();
 
-        if(config.autoconnect) this.connect();
+        if (config.autoconnect) this.connect();
 
         return this;
     };
 
-    PromisedDB.prototype.reset = function(options){
+    PromisedDB.prototype.reset = function(options) {
         this.tries = 0;
         this.queue = [];
 
-        if(this.connection) this.connection.close();
+        if (this.connection) this.connection.close();
 
         this.connection = null;
     };
 
-    PromisedDB.prototype.connect = function(){
+    PromisedDB.prototype.connect = function() {
         var req = this.driver.open(this.database, this.version);
 
-        req.onsuccess = function(e) {
-            //TODO: Move to Connection Manager this.manager.didConnect();
-            this.tries = 0;
-            //TODO: Move to onConnected
-            this.connection = e.target.result;
-            this.connection.onversionchange = function(event) {
-                this.connection.close();
-                this.logger.warn("PromisedDB is updating. Please reload!");
-            };
-
-            this.onConnected();
-            this.flushQueue();
-        };
+        //TODO: Move to Connection Manager this.manager.didConnect();
+        req.onsuccess = this._onSuccess.bin(this);
 
         // If connection cannot be made to database.
-        req.onerror = function(e) {
-            //TODO: Handle in Connection Manager
-            if (++this.tries < this.maxTries) {
-                setTimeout(this.connect.bind(this), this.delay);
-            } else {
-                this.onError(e);
-            }
-        };
+        req.onerror = this._onFailure.bind(this);
 
-        req.onblocked = function(e){
-            //Version upgrades.
-            // If some other tab is loaded with the database, then it needs to be closed
-            // before we can proceed.
-            this.logger.warn("PromisedDB: close other open tabs with this app running");
-        };
+        //Version upgrades.
+        // If some other tab is loaded with the database, then it needs to be closed
+        // before we can proceed.
+        req.onblocked = this._onBlocked.bind(this);
 
         // This will run if our database is new and other
         // connections closed.
-        req.onupgradeneeded = function(e) {
-            var connection = e.target.result;
-            //TODO: Should we ensure we notify that
-            //we had to create the DB?!
-            this.defineSchema.apply(connection);
-        };
-
-        req.onerror = req.onerror.bind(this);
-        req.onsuccess = req.onsuccess.bind(this);
-        req.onblocked = req.onblocked.bind(this);
-        req.onupgradeneeded = req.onupgradeneeded.bind(this);
+        req.onupgradeneeded = this._onUpgradeNeeded.bind(this);
     };
 
     PromisedDB.prototype.query = function(query) {
@@ -278,11 +251,50 @@
                 }, {});
                 resolve(result);
             })
-            .catch(function(e){
+            .catch(function(e) {
                 console.error(e);
                 reject(e);
             });
     };
+
+    ///////////////////////////////////////////////////
+    // PRIVATE METHODS
+    ///////////////////////////////////////////////////
+    PromisedDB.prototype._onSuccess = function(e) {
+        this.tries = 0;
+        this.connection = e.target.result;
+        this.connection.onversionchange = function(event) {
+            this.connection.close();
+            this.logger.warn("PromisedDB is updating. Please reload!");
+        };
+
+        this.flushQueue();
+        this.onConnected();
+    };
+
+    PromisedDB.prototype._onBlocked = function(e) {
+        this.logger.warn("PromisedDB: close other open tabs with this app running");
+    };
+
+    PromisedDB.prototype._onFailure = function(e) {
+        //TODO: Handle in Connection Manager
+        if (++this.tries < this.maxTries) {
+            setTimeout(this.connect.bind(this), this.delay);
+        } else {
+            this.onError(e);
+        }
+    };
+
+    PromisedDB.prototype._onUpgradeNeeded = function(e) {
+        var connection = e.target.result;
+        //TODO: Should we ensure we notify that
+        //we had to create the DB?!
+        this.defineSchema.apply(connection);
+    };
+
+    ///////////////////////////////////////////////////
+    // STUB METHODS: To be overridden by developers.
+    ///////////////////////////////////////////////////
 
     PromisedDB.prototype.onConnected = function() {
         this.logger.info('BD connected');
