@@ -87,9 +87,11 @@
 
         version: 1.0,
         storeId: '_GST_',
-        database: '_gstore_default_',
+        database: '_promiseddb_default_',
         resultNamespace: 'result',
-        defineSchema: function() {},
+        defineSchema: function() {
+
+        },
         getDriver: function() {
             return indexedDB || mozIndexedDB || webkitIndexedDB || msIndexedDB;
         }
@@ -153,7 +155,7 @@
         var req = this.driver.open(this.database, this.version);
 
         //TODO: Move to Connection Manager this.manager.didConnect();
-        req.onsuccess = this._onSuccess.bin(this);
+        req.onsuccess = this._onSuccess.bind(this);
 
         // If connection cannot be made to database.
         req.onerror = this._onFailure.bind(this);
@@ -257,17 +259,26 @@
             });
     };
 
+    PromisedDB.prototype.tearDown = function(){
+        var request = this.driver.deleteDatabase(this.database);
+        var promise = new Promise(function(resolve, reject) {
+                request.onerror = reject;
+                request.onblocked = reject;
+                request.onsuccess = function(data) {
+                    resolve(data);
+                };
+            });
+        return promise;
+    };
+
     ///////////////////////////////////////////////////
     // PRIVATE METHODS
     ///////////////////////////////////////////////////
     PromisedDB.prototype._onSuccess = function(e) {
         this.tries = 0;
         this.connection = e.target.result;
-        this.connection.onversionchange = function(event) {
-            this.connection.close();
-            this.logger.warn("PromisedDB is updating. Please reload!");
-        };
-
+        this.connection.onversionchange = this._onVersionChange.bind(this);
+        this.logger.info('PromisedDB connected to ', this.database, this.version);
         this.flushQueue();
         this.onConnected();
     };
@@ -291,6 +302,11 @@
         //we had to create the DB?!
         this.defineSchema.apply(connection);
     };
+
+    PromisedDB.prototype._onVersionChange = function(event) {
+            if(this.connection) this.connection.close();
+            this.logger.warn("PromisedDB is updating. Please reload!");
+        };
 
     ///////////////////////////////////////////////////
     // STUB METHODS: To be overridden by developers.
