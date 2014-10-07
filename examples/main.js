@@ -12,28 +12,29 @@ define(['promiseddb', 'jquery'], function (PromisedDB, $) {
     console.log('Loading');
 
     var User = {
-    	storeName:'User',
+    	init:function(config){
+    		this.db = config.db
+    		this.storeName =
+    		this.db.storeId = config.storeId;
+    	},
         add: function(user) {
-            return this.db.with(this.storeName, function(execute) {
-                this.objectStore('User')
-                    .put(user);
+            return this.db.query(function(execute) {
+                this.store.put(user);
             });
         },
         get: function(id) {
-            return this.db.with(this.storeName, function(execute) {
-                execute(this.objectStore('User')
-                    .get(id));
+            return this.db.query(function(execute) {
+                execute(this.store.get(id));
             });
         },
         del: function(id) {
-            return this.db.with(this.storeName, function(execute) {
-                this.objectStore('User')
-                    .delete(id);
+            return this.db.query(function(execute) {
+                this.store.delete(id);
             });
         },
         getUserStatus: function(id) {
-            var q = this.db.with(this.storeName, function(execute) {
-                execute(this.objectStore('User').get(id), 'user');
+            var q = this.db.query(function(execute) {
+                execute(this.store.get(id), 'user');
             });
 
             q.then(function(data) {
@@ -62,7 +63,7 @@ define(['promiseddb', 'jquery'], function (PromisedDB, $) {
 		}
 	});
 
-	User.db = promiseddb;
+	User.init({storeId:'User', db:promiseddb});
 
 	User.add({
 		id:1,
@@ -76,7 +77,10 @@ define(['promiseddb', 'jquery'], function (PromisedDB, $) {
         active: true
     });
 
-    User.getUserStatus(1);
+    User.getUserStatus(2);
+    User.get(1).then(function(e){
+    	console.log(e.result);
+    });
 
 	window.db = promiseddb;
 });
