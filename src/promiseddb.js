@@ -238,10 +238,11 @@
 
         try {
             /*
-             * Execute commit in transaction scope.
+             * Execute commit in scope exposing store and
+             * transaction.
              */
             var scope = {
-                tx:transaction,
+                transaction:transaction,
                 store:transaction.objectStore(storeId)
             };
             commit.call(scope, execute);
