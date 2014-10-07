@@ -170,6 +170,10 @@
         req.onupgradeneeded = this._onUpgradeNeeded.bind(this);
     };
 
+    PromisedDB.prototype.addStore = function(storeId){
+        this[storeId] = this.objectStore(storeId);
+    };
+
     PromisedDB.prototype.query = function(query) {
         return this.with(this.storeId, query);
     };
@@ -236,7 +240,11 @@
             /*
              * Execute commit in transaction scope.
              */
-            commit.call(transaction, execute);
+            var scope = {
+                tx:transaction,
+                store:transaction.objectStore(storeId)
+            };
+            commit.call(scope, execute);
         } catch (e) {
             reject(e);
         }
