@@ -16,6 +16,14 @@ define(['promiseddb', 'jquery'], function (PromisedDB, $) {
     		this.db = config.db
     		this.storeName =
     		this.db.storeId = config.storeId;
+    		/*
+    		We can still simplify to:
+    			this.store = config.db.storeFor(config.storeId);
+    			return this.store.get(id);   //returns Promise
+    			return this.store.put(id);   //returns Promise
+    			return this.store.clear();   //returns Promise
+    			return this.store.delete(id);//returns Promise
+    		*/
     	},
         add: function(user) {
             return this.db.query(function(execute) {
