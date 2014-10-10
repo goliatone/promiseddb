@@ -91,4 +91,5 @@ define(['promiseddb', 'jquery'], function (PromisedDB, $) {
     });
 
 	window.db = promiseddb;
+	window.User = User;
 });
