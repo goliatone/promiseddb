@@ -287,9 +287,32 @@
         this.tries = 0;
         this.connection = e.target.result;
         this.connection.onversionchange = this._onVersionChange.bind(this);
+        this.createStoreProxies();
         this.logger.info('PromisedDB connected to ', this.database, this.version);
         this.flushQueue();
         this.onConnected();
+    };
+
+    PromisedDB.prototype.createStoreProxies = function(){
+        var storeName,
+            that = this,
+            i = 0,
+            t = this.connection.objectStoreNames.length,
+            stores = this.connection.objectStoreNames;
+
+        var proxy = function(store, storeName){
+            console.log('Create', store);
+            store.get = function(id) {
+                return that;
+
+            };
+        }.bind(this);
+
+        for(; i < t; i++){
+            storeName = stores[i];
+            this[storeName] = {};
+            proxy(this[storeName], storeName);
+        }
     };
 
     PromisedDB.prototype._onBlocked = function(e) {
