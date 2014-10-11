@@ -13,38 +13,20 @@ define(['promiseddb', 'jquery'], function (PromisedDB, $) {
 
     var User = {
     	init:function(config){
-    		this.db = config.db
-    		this.storeName =
-    		this.db.storeId = config.storeId;
-    		/*
-    		We can still simplify to:
-    			this.store = config.db.storeFor(config.storeId);
-    			return this.store.get(id);   //returns Promise
-    			return this.store.put(id);   //returns Promise
-    			return this.store.clear();   //returns Promise
-    			return this.store.delete(id);//returns Promise
-    		*/
+    		console.log(config)
+    		this.store = config.store;
     	},
         add: function(user) {
-            return this.db.query(function(execute) {
-                this.store.put(user);
-            });
+            return this.store.put(user);
         },
         get: function(id) {
-            return this.db.query(function(execute) {
-                execute(this.store.get(id));
-            });
+            return this.store.get(id);
         },
         del: function(id) {
-            return this.db.query(function(execute) {
-                this.store.delete(id);
-            });
+        	return this.store.delete(id);
         },
         getUserStatus: function(id) {
-            var q = this.db.query(function(execute) {
-                execute(this.store.get(id), 'user');
-            });
-
+            var q = this.store.get(id, 'user');
             q.then(function(data) {
                 var user = data.user,
                     active = user.active ? 'very active' : 'not very active';
@@ -68,12 +50,14 @@ define(['promiseddb', 'jquery'], function (PromisedDB, $) {
                 keyPath: 'id',
                 autoIncrement: true
             });
+		},
+		onConnected:function(){
+			User.init({store:promiseddb.User});
 		}
 	});
 
-	User.init({storeId:'User', db:promiseddb});
 
-	User.add({
+	/*User.add({
 		id:1,
         name: 'Pepe',
         active: false
@@ -83,12 +67,12 @@ define(['promiseddb', 'jquery'], function (PromisedDB, $) {
 		id:2,
         name: 'Rone',
         active: true
-    });
+    });*/
 
-    User.getUserStatus(2);
-    User.get(1).then(function(e){
-    	console.log(e.result);
-    });
+    // User.getUserStatus(2);
+    // User.get(1).then(function(e){
+    // 	console.log(e.result);
+    // });
 
 	window.db = promiseddb;
 	window.User = User;
