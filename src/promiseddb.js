@@ -301,11 +301,14 @@
             stores = this.connection.objectStoreNames;
 
         var proxy = function(store, storeName){
-            console.log('Create', store);
-            store.get = function(id) {
-                return that;
-
-            };
+            ['get', 'put', 'delete'].forEach(function(method){
+                store[method] = function(){
+                    var args = [].slice.call(arguments, 0);
+                    return that.with(storeName, function(execute){
+                        execute(this.store.get.apply(this.store, args));
+                    });
+                };
+            });
         }.bind(this);
 
         for(; i < t; i++){
