@@ -90,7 +90,7 @@
         database: '_promiseddb_default_',
         resultNamespace: 'result',
         defineSchema: function() {
-
+            console.log('Define Schema needs to be defined. Do so in config object.');
         },
         getDriver: function() {
             return indexedDB || mozIndexedDB || webkitIndexedDB || msIndexedDB;
